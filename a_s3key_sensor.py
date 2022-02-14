@@ -1,27 +1,26 @@
-from datetime import datetime, timedelta
-
 from airflow import DAG
+from datetime import datetime
 from airflow.providers.amazon.aws.sensors.s3_key import S3KeySensor
-
 
 default_args = {
     'owner': 'Lax',
-    'start_date': datetime(2021,10,8),
+    'start_date': datetime(2021,12,10),
     'email_on_failure': False,
-    'email': ['laxmikanth.dhage@gmail.com'],
-    'email_on_retry': False
+    'email_on_retry': False,
+    'depends_on_past': False,
+    'retries': 0,
 }
 
+with DAG('s3key_sensor', default_args=default_args, schedule_interval="@once", tags=['lax']) as dag:
 
-with DAG('a_s3key_sensor', default_args=default_args, schedule_interval='@once', tags=['lax']) as dag:
-
-    sense_file_in_s3 = S3KeySensor(
-        task_id='sense_file_in_s3',
-        bucket_key='*.json',
+    t1 = S3KeySensor(
+        task_id='s3key_sensor',
         bucket_name='jsonfiles10052021',
-        aws_conn_id='AWSS3Operations',
+        bucket_key='*.json',
         wildcard_match=True,
-        verify=False
+        aws_conn_id='AWSS3Operations'
     )
 
-    sense_file_in_s3
+
+    t1
+    
