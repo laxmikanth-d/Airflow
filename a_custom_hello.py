@@ -17,6 +17,7 @@ default_args = {
 
 with DAG('custom_hello', default_args=default_args,
          description='custom hello', start_date=days_ago(2), tags=['lax']) as dag:
-    hello_task = HelloOperator(task_id="sample-task", name="foo-bar")
+    
+    hello_task = HelloOperator(task_id="sample-task", name="{{task_instance.task_id}}")
 
     hello_task
