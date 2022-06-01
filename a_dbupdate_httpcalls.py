@@ -1,6 +1,5 @@
 from datetime import datetime
-from airflow import DAG
-from airflow.operators.python import PythonOperator
+from airflow.decorators import dag, task
 from airflow.hooks.postgres_hook import PostgresHook
 import requests
 
@@ -13,43 +12,39 @@ default_args = {
     'retries': 0
 }
 
-def postgres_reader(**context):
-    print("------------------------------")
-    print("Hello")
-    print(str(context))
-    pg_hook = PostgresHook(postgre_conn_id='postgres_default', schema='demodb')
-    pg_conn = pg_hook.get_conn()
-    request = "SELECT * FROM return_order"
-    crsr = pg_conn.cursor()
-    crsr.execute(request)
+pg_hook = PostgresHook(postgre_conn_id='postgres_default', schema='demodb')
+pg_conn = pg_hook.get_conn()
 
-    results = crsr.fetchall()
+@dag(schedule_interval = '@daily', tags=['lax'], default_args=default_args, catchup = False)
+def dbupdate_httpcalls():
 
-    for r in results:
-        if r[2] == False:
-            print(f'{r[0]} -- {r[1]} -- {r[2]}')
-            data_obj = {
-                'r0': r[0],
-                'r1': r[1],
-                'r2': r[2]
-            }
-            res = requests.post('https://reqres.in/api/users/2',data = data_obj)
-            if res.status_code == 201:
-                print('Returned status is 201')
-                cursr = pg_conn.cursor()
-                cursr.execute(f'UPDATE return_order SET processed = True WHERE id = {r[0]}')
-                pg_conn.commit()
-                cursr.close() 
+    @task
+    def read_db() -> list[tuple]:
+        request = "SELECT * FROM return_order"
+        crsr = pg_conn.cursor()
+        crsr.execute(request)
+        orders = crsr.fetchall()
 
-    print("------------------------------")
+        return orders
 
+    @task
+    def make_http(orders: list[tuple]):
+        for order in orders:
+            if order[2] == False:
+                print(f'{order[0]} -- {order[1]} -- {order[2]}')
+                data_obj = {
+                    'id': order[0],
+                    'response': order[1],
+                    'processed': order[2]
+                }
+                res = requests.post('https://reqres.in/api/users/2',data = data_obj)
+                if res.status_code == 201:
+                    print('Returned status is 201')
+                    cursr = pg_conn.cursor()
+                    cursr.execute(f'UPDATE return_order SET processed = True WHERE id = {order[0]}')
+                    pg_conn.commit()
+                    cursr.close()
 
-with DAG("dbupdate_httpcalls", default_args = default_args, catchup=False, schedule_interval="@once", tags=["lax"]) as dag:
+    make_http(read_db())
 
-    t1 = PythonOperator (
-        task_id = 'read_db',
-        python_callable = postgres_reader,
-        provide_context = True
-    )
-
-    t1
+dag = dbupdate_httpcalls()
