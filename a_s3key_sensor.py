@@ -11,6 +11,11 @@ default_args = {
     'retries': 0
 }
 
+# Create aws connection in UI
+#   1. Go to Admin > Connections
+#   2. Connection Id: aws_default, Connection Type: S3
+#   3. Extra: {"aws_access_key_id": "", "aws_secret_access_key": ""}    
+
 with DAG('s3key_sensor', default_args=default_args, schedule_interval="@once", tags=['lax']) as dag:
 
    t1 = S3KeySensor(
